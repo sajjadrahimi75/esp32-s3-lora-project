@@ -3,7 +3,7 @@
 #include <string.h>
 #include "uart_interrupt.h"
 #include "lora_wrapper.h"
-
+// Test Git update
 char SEND_MESSAGE[64]="";
 extern char received_text[64];
 
