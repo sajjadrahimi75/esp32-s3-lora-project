@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "uart_interrupt.c"
+        "lora_wrapper.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        esp_driver_uart
+)
