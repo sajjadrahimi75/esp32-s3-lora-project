@@ -3,8 +3,14 @@ idf_component_register(
         "main.c"
         "uart_interrupt.c"
         "lora_wrapper.cpp"
+
     INCLUDE_DIRS
         "."
+
     REQUIRES
+        esp_driver_gpio
         esp_driver_uart
+        esp_driver_spi
+        esp_timer
+        jgromes__radiolib
 )
