@@ -15,4 +15,6 @@ idf_component_register(
 target_compile_definitions(${COMPONENT_LIB} PUBLIC
     RADIOLIB_VERBOSE_ASSERT=1
     RADIOLIB_DEBUG_BASIC=1
+    RADIOLIB_DEBUG_PROTOCOL=1
+    RADIOLIB_DEBUG_SPI=1
 )

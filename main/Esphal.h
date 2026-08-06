@@ -125,7 +125,7 @@ public:
     }
 
 
-    void attachInterrupt(
+   /* void attachInterrupt(
         uint32_t interruptNum,
         void (*interruptCb)(void),
         uint32_t mode
@@ -181,7 +181,89 @@ public:
                 esp_err_to_name(result)
             );
         }
+    }*/
+
+   void attachInterrupt(
+    uint32_t interruptNum,
+    void (*interruptCb)(void),
+    uint32_t mode
+) override
+{
+    if(
+        interruptNum == RADIOLIB_NC ||
+        interruptCb == nullptr
+    )
+    {
+        return;
     }
+
+    static bool isrServiceInstalled = false;
+
+    if(!isrServiceInstalled)
+    {
+        esp_err_t result = gpio_install_isr_service(
+            ESP_INTR_FLAG_IRAM
+        );
+
+        if(
+            result == ESP_OK ||
+            result == ESP_ERR_INVALID_STATE
+        )
+        {
+            isrServiceInstalled = true;
+        }
+        else
+        {
+            /*ESP_LOGE(
+                "EspHal",
+                "GPIO ISR service installation failed: %s",
+                esp_err_to_name(result)
+            );*/
+
+            return;
+        }
+    }
+
+    gpio_num_t pin =
+        static_cast<gpio_num_t>(interruptNum);
+
+    gpio_set_direction(
+        pin,
+        GPIO_MODE_INPUT
+    );
+
+    gpio_set_intr_type(
+        pin,
+        static_cast<gpio_int_type_t>(mode)
+    );
+
+    // Remove an older handler if one exists.
+    gpio_isr_handler_remove(pin);
+
+    esp_err_t result = gpio_isr_handler_add(
+        pin,
+        gpioInterruptHandler,
+        reinterpret_cast<void*>(interruptCb)
+    );
+
+    if(result != ESP_OK)
+    {
+        /*ESP_LOGE(
+            "EspHal",
+            "GPIO ISR handler installation failed: %s",
+            esp_err_to_name(result)
+        );*/
+    }
+    else
+    {
+        /*ESP_LOGI(
+            "EspHal",
+            "Interrupt attached to GPIO %lu, mode %lu",
+            static_cast<unsigned long>(interruptNum),
+            static_cast<unsigned long>(mode)
+        );*/
+    }
+}
 
 
     void detachInterrupt(uint32_t interruptNum) override
