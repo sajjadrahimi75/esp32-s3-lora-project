@@ -31,3 +31,19 @@ int lora_receive(
 #endif
 
 #endif
+
+
+
+void lora_wrapper_run(const char *message,
+    char *lora_received_message,
+    int *year,
+    int *month,
+    int *day,
+    int *hour,
+    int *minute,
+    int  *time_error);
+
+#ifdef __cplusplus
+}
+#endif
+

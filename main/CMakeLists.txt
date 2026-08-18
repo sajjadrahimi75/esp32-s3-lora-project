@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "lora_wrapper.cpp"
+        "main.c"
 
     INCLUDE_DIRS
         "."
