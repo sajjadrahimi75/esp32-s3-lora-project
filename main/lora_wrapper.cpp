@@ -87,18 +87,21 @@ static const char* TAG = "LoRa";
     int first_run=0;
     int start=0;
     int joinerror=0;
-    int senderror=0;
+//    int senderror=0;
     int sendsuccessful=0;
+    int send_receive_try=0;
     int16_t state=-1116;
     //char message[200];
 extern "C" void lora_wrapper_run(char *message,
     char *lora_received_message,
+    char *check_lora_income,
     int *year,
     int *month,
     int *day,
     int *hour,
     int *minute,
-    int *time_error)
+    int *time_error,
+    int *senderror)
 {
     
     ///////////////////////////////////////errors
@@ -176,8 +179,6 @@ extern "C" void lora_wrapper_run(char *message,
                     while(1) ///////////////////////////for turn on lora and reset(step1)
                     {
 
-                    gpio_reset_pin(GPIO_NUM_47);
-                    gpio_set_direction(GPIO_NUM_47,GPIO_MODE_OUTPUT);
                     gpio_set_level(GPIO_NUM_47,1); //TURN ON LED
 
 
@@ -499,7 +500,7 @@ extern "C" void lora_wrapper_run(char *message,
         // Join The Things Network
         // --------------------------------------------------
 
-            if(step==5)
+            if(step==5 &&gpio_get_level(GPIO_NUM_21)==0)
             {
 
             gpio_set_level(GPIO_NUM_47,0); //TURN OFF LED
@@ -514,8 +515,8 @@ extern "C" void lora_wrapper_run(char *message,
                     gpio_set_level(GPIO_NUM_47,0); //TURN OFF LED
                     hal->delay(250);
                     start++;
-                    printf("\rSTEP 5 WAIT TO SEND JOIN REQUEST(count:): %d",start);
-                        if(start>joinerror*5)
+                    printf("\rSTEP 5:WAIT TO SEND JOIN REQUEST(count:%d)",start);
+                        if(start>joinerror)
                         {
                         start=0;
                         step_5error++;
@@ -588,9 +589,6 @@ extern "C" void lora_wrapper_run(char *message,
             {
             ESP_LOGI(TAG, "STEP6:Sending and receiving message...");
             gpio_set_level(GPIO_NUM_47,0); //TURN OFF LED
-            char send_message[200];
-            int send_turn=0;
-            int16_t timeState ;
             char timemessage[200];
             /*int year   = 0;
             *int month  = 0;
@@ -611,178 +609,195 @@ extern "C" void lora_wrapper_run(char *message,
                 LoRaWANEvent_t eventUp = {};
                 LoRaWANEvent_t eventDown = {};
 
-        ////////////////////////////////////sending two message by turn/////////////////////
-                    if(send_turn == 0)
-                    {
-                    strcpy(send_message, message);
-                    }
-                    else if(send_turn == 1)
-                    {
-                    strcpy(send_message, timemessage);
-                    }
-                //send_turn++;
-                    if(send_turn==2)
-                    {
-                    send_turn=0;
-                    }
-        //////////////////////////// Ask network time//////////////////////////////
+                        
+            //////////////////////SENDING AND RECEIVING/////////////////////////////////////
+                send_receive_try=0;
+                int ack=0;
+                    while(send_receive_try<5 && gpio_get_level(GPIO_NUM_21)==0)
+                    {   
+                    state = node.sendReceive(
+                    message,
+                    1,
+                    dataDown,
+                    &lenDown,
+                    ack,
+                    &eventUp,
+                    &eventDown
+                    );
+            /////////////////////////////////////////////////////////////////////////////////
+     /////////////////////////////////////////////////////////// showing incoming message
+
+                        //if(state == RADIOLIB_LORAWAN_RX1 || state == RADIOLIB_LORAWAN_RX2)
+                        //{
+                        dataDown[lenDown] = '\0';
+
+                        ESP_LOGI(TAG,"Downlink received in RX%d, FPort=%u, length=%u",state,
+                                eventDown.fPort,
+                                (unsigned int)lenDown
+                            );
+
+                            // Copy received LoRaWAN message
+                        size_t copy_length = lenDown;
+
+                            if(copy_length >= sizeof(lora_received_message))
+                            {
+                            copy_length = sizeof(lora_received_message) - 1;
+                            }
+
+                        // Save received message into main.c buffer
+                        memcpy(lora_received_message, dataDown, lenDown);
+
+                        // End the C string
+                        lora_received_message[lenDown] = '\0';
+
+                        printf("Received in LoRaWrapper: %s\r\n",lora_received_message);
+                        check_lora_income[0] = lora_received_message[0];
+                        check_lora_income[1] = lora_received_message[1];
+                        check_lora_income[2] = '\0';
+                            
+                        printf("TWO FIRST CHARACTER: %s\r\n",check_lora_income);
+
+                        //}
+                        /*else if(state == RADIOLIB_ERR_NONE)
+                        {
+                        ESP_LOGI(TAG,"Uplink sent successfully, no downlink received");
+                        }
+                        else
+                        {
+                        ESP_LOGE(TAG,"LoRaWAN sendReceive failed, code: %d",state);
+                        }*/
+
+                        /*if(state == RADIOLIB_LORAWAN_RX1 ||state == RADIOLIB_LORAWAN_RX2)
+                        {
+                        dataDown[lenDown] = '\0';
+
+                        ESP_LOGI(TAG,"Downlink received in RX%d, FPort=%u, length=%u",state,
+                        eventDown.fPort,(unsigned int)lenDown);
+
+                        printf("Received text: %s\r\n",reinterpret_cast<char*>(dataDown));
+                        }
+                        else if(state == RADIOLIB_ERR_NONE)
+                        {
+                        ESP_LOGI(TAG,"Uplink sent successfully, no downlink received");
+                        }
+                        else
+                        {
+                        ESP_LOGE(TAG,"LoRaWAN sendReceive failed, code: %d",state);
+                        }*/
+                  
+            /////////////////////////////////check message has been send successfully///////////////
+                        if(state > RADIOLIB_ERR_NONE ||lora_received_message[0] != '\0')
+                        {
+                            if(state > RADIOLIB_ERR_NONE)
+                            {
+                             ESP_LOGI(TAG,"LoRaWAN uplink sent, result: %d",state);
+                            }
+                            else
+                            {
+                             ESP_LOGI(TAG,"LoRaWAN uplink sent checked by income message, result: %d",state);   
+                            }
+                        sendsuccessful++;
+                        gpio_set_level(GPIO_NUM_8, 1);      // LOW = LoRa Off
+                        send_receive_try=10;
+                        step=1;
+                        first_run=1;
+                        step_6error=0;
+                        ack=0;
+                        message[0] = '\0';
+                            /*while(1)
+                            {
+                            printf("\r WAITING FOR SENDING NEXT MESSAGE(count: %d)\r",start);
+                            gpio_set_level(GPIO_NUM_47,1);
+                            hal->delay(10);
+                            gpio_set_level(GPIO_NUM_47,0);
+                            hal->delay(990);
+                            start++;
+                                if(start>30)
+                                {
+                                start=0;
+                                step=1;//////////////////////////////test
+                                first_run=1;
+                                step_6error=0;
+                                break;
+                                }
+                            }*/
+                        }
+                        else
+                        {
+                        ESP_LOGE(TAG,"LoRaWAN uplink failed, code: %d",state);
+                        (*senderror)++;
+                        send_receive_try++;
+                        ack=1;
+                            
+                            /*while(1)
+                            {
+                            gpio_set_level(GPIO_NUM_47,1);
+                            hal->delay(500);
+                            gpio_set_level(GPIO_NUM_47,0);
+                            hal->delay(500); 
+                            start++;
+                            printf("\r wait until next try,count: %d\r",start);
+                                if(start>10)
+                                {
+                                start=0;
+                                step_6error++;
+                                step=1;
+                                break;
+                                }  
+                            }*/
+                        }
+                    }//for of send_receive_try    
+ 
+        //////////////////////////getting time//////////////////////////////////////////////
+
                 uint32_t unixTime =0;
                 uint16_t ms =0;
-                int16_t timestate =node.sendMacCommandReq(RADIOLIB_LORAWAN_MAC_DEVICE_TIME);
+                int16_t gettingtime_statue=0;
 
-        //////////////////////SENDING AND RECEIVING/////////////////////////////////////
-                state = node.sendReceive(
-                send_message,
-                1,
-                dataDown,
-                &lenDown,
-                true,
-                &eventUp,
-                &eventDown
-                );
-        /////////////////////////////////////////////////////////////////////////////////
-        //////////////////////////getting time//////////////////////////////////////////////
-                
-                timeState =node.getMacDeviceTimeAns(&unixTime,&ms,true);
+                gettingtime_statue =node.sendMacCommandReq(RADIOLIB_LORAWAN_MAC_DEVICE_TIME);  
+                printf("\nsendMacCommandReq for time(state:%d)\n",gettingtime_statue);
                 
             //////////////////////////////calculating the time////////////////////////////
 
-                    if(timeState >= RADIOLIB_ERR_NONE)
+                    if(gettingtime_statue >=0)
                     {
-                    time_t rawTime = static_cast<time_t>(unixTime);
-
-                    struct tm timeInfo = {};
-
-                    gmtime_r(&rawTime, &timeInfo);
-
-                    *year   = timeInfo.tm_year + 1900;
-                    *month  = timeInfo.tm_mon + 1;
-                    *day    = timeInfo.tm_mday;
-                    *hour   = timeInfo.tm_hour+2;
-                    *minute = timeInfo.tm_min;
-                    second = timeInfo.tm_sec;
-
-                    printf("Date: %02d/%02d/%04d\n", *day, *month, *year);
-                    printf("Time: %02d:%02d:%02d\n", *hour, *minute, second);
-
-                    snprintf(timemessage,sizeof(timemessage),"Time: %02d:%02d:%02d|||Date: %02d/%02d/%04d"
-                    ,*hour, *minute, second, *day, *month, *year);
-                    }
-                    else
-                    {
-                    printf("No DeviceTimeAns received.error is:%d\r\n",timestate);
-                    (*time_error)++;
-                    }
-                
-        /////////////////////////////////check message has been send successfully///////////////
-
-                    if(state >= RADIOLIB_ERR_NONE)
-                    {
-                    ESP_LOGI(TAG,"LoRaWAN uplink sent, result: %d",state);
-                    sendsuccessful++;
-                    gpio_set_level(GPIO_NUM_8, 1);      // LOW = LoRa Off
-                    step=1;
-                    first_run=1;
-                    step_6error=0;
-                    message[0] = '\0';
-                        /*while(1)
+                    gettingtime_statue =node.getMacDeviceTimeAns(&unixTime,&ms,true);
+                    printf("\nreading time(state:%d)\n",gettingtime_statue);
+                        if (gettingtime_statue>=0)
                         {
-                        printf("\r WAITING FOR SENDING NEXT MESSAGE(count: %d)\r",start);
-                        gpio_set_level(GPIO_NUM_47,1);
-                        hal->delay(10);
-                        gpio_set_level(GPIO_NUM_47,0);
-                        hal->delay(990);
-                        start++;
-                            if(start>30)
-                            {
-                            start=0;
-                            step=1;//////////////////////////////test
-                            first_run=1;
-                            step_6error=0;
-                            break;
-                            }
-                        }*/
-                    }
-                    else
-                    {
-                    ESP_LOGE(TAG,"LoRaWAN uplink failed, code: %d",state);
-                    senderror++;
-                        while(1)
-                        {
-                        gpio_set_level(GPIO_NUM_47,1);
-                        hal->delay(500);
-                        gpio_set_level(GPIO_NUM_47,0);
-                        hal->delay(500); 
-                        start++;
-                        printf("\r wait until next try,count: %d\r",start);
-                            if(start>10)
-                            {
-                            start=0;
-                            step_6error++;
-                            step=1;
-                            break;
-                            }  
+                        time_t rawTime = static_cast<time_t>(unixTime);
+
+                        struct tm timeInfo = {};
+
+                        gmtime_r(&rawTime, &timeInfo);
+
+                        *year   = timeInfo.tm_year + 1900;
+                        *month  = timeInfo.tm_mon + 1;
+                        *day    = timeInfo.tm_mday;
+                        *hour   = timeInfo.tm_hour+2;
+                        *minute = timeInfo.tm_min;
+                        second = timeInfo.tm_sec;
+
+                        printf("Date: %02d/%02d/%04d\n", *day, *month, *year);
+                        printf("Time: %02d:%02d:%02d\n", *hour, *minute, second);
+
+                        snprintf(timemessage,sizeof(timemessage),"Time: %02d:%02d:%02d|||Date: %02d/%02d/%04d"
+                        ,*hour, *minute, second, *day, *month, *year);
                         }
+                        else
+                        {
+                        printf("No DeviceTimeAns received.error is:%d\r\n",gettingtime_statue);
+                        (*time_error)++;
+                        }
+
                     }
-            
+
         /////////////////////////////////////////////saving buffer after sending////////////////
                 memcpy(g_noncesBuffer_aftersend,node.getBufferNonces(),RADIOLIB_LORAWAN_NONCES_BUF_SIZE);
                 memcpy(g_sessionBuffer_aftersend,node.getBufferSession(),RADIOLIB_LORAWAN_SESSION_BUF_SIZE);
                 g_noncesSize_aftersend = RADIOLIB_LORAWAN_NONCES_BUF_SIZE;
                 g_sessionSize_aftersend = RADIOLIB_LORAWAN_SESSION_BUF_SIZE;
         ///////////////////////////////////////////////////////////showing income message
-    /////////////////////////////////////////////////////////// showing incoming message
-
-                    if(state == RADIOLIB_LORAWAN_RX1 || state == RADIOLIB_LORAWAN_RX2)
-                    {
-                    dataDown[lenDown] = '\0';
-
-                    ESP_LOGI(TAG,"Downlink received in RX%d, FPort=%u, length=%u",state,
-                            eventDown.fPort,
-                            (unsigned int)lenDown
-                        );
-
-                        // Copy received LoRaWAN message
-                    size_t copy_length = lenDown;
-
-                         if(copy_length >= sizeof(lora_received_message))
-                         {
-                         copy_length = sizeof(lora_received_message) - 1;
-                         }
-
-                    // Save received message into main.c buffer
-                     memcpy(lora_received_message, dataDown, lenDown);
-
-                     // End the C string
-                     lora_received_message[lenDown] = '\0';
-
-                     printf("Received in LoRaWrapper: %s\r\n",lora_received_message);
-                     }
-                     else if(state == RADIOLIB_ERR_NONE)
-                     {
-                     ESP_LOGI(TAG,"Uplink sent successfully, no downlink received");
-                     }
-                     else
-                     {
-                     ESP_LOGE(TAG,"LoRaWAN sendReceive failed, code: %d",state);
-                     }
-                    /*if(state == RADIOLIB_LORAWAN_RX1 ||state == RADIOLIB_LORAWAN_RX2)
-                    {
-                    dataDown[lenDown] = '\0';
-
-                    ESP_LOGI(TAG,"Downlink received in RX%d, FPort=%u, length=%u",state,
-                    eventDown.fPort,(unsigned int)lenDown);
-
-                    printf("Received text: %s\r\n",reinterpret_cast<char*>(dataDown));
-                    }
-                    else if(state == RADIOLIB_ERR_NONE)
-                    {
-                    ESP_LOGI(TAG,"Uplink sent successfully, no downlink received");
-                    }
-                    else
-                    {
-                    ESP_LOGE(TAG,"LoRaWAN sendReceive failed, code: %d",state);
-                    }*/
 
             //////////////////////////////////////////showing buffer///////////////////////////
         
@@ -855,13 +870,18 @@ extern "C" void lora_wrapper_run(char *message,
 
                 printf("\nNONCES DIFFERENT IS:%d///SESSION DIFFERENT IS:%d\n",noncess_diff,session_diff);
             
-                printf("\n\r\033[34mRESULT OF ERROR ARE= ERROR OF JOIN:%d//ERROR OF SEND MESSAGE:%d//successful send:%d//time error:%d\033[0m\n",joinerror,senderror,sendsuccessful,*time_error);
+                printf("\n\r\033[34mRESULT OF ERROR ARE= ERROR OF JOIN:%d//ERROR OF SEND MESSAGE:%d//successful send:%d//time error:%d\033[0m\n",joinerror,*senderror,sendsuccessful,*time_error);
 
                 break;
             
                 }//while
             }//if for step=6
         
+            //delete later
+                        step=1;
+                        first_run=1;
+                        step_6error=0;
+                        message[0] = '\0';
         }
-        
+            
 }

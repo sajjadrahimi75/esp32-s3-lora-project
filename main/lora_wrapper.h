@@ -36,12 +36,14 @@ int lora_receive(
 
 void lora_wrapper_run(const char *message,
     char *lora_received_message,
+    char *check_lora_income,
     int *year,
     int *month,
     int *day,
     int *hour,
     int *minute,
-    int  *time_error);
+    int *time_error,
+    int *senderror);
 
 #ifdef __cplusplus
 }

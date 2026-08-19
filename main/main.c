@@ -6,6 +6,7 @@
 #include "freertos/task.h"
 
 
+
 void app_main(void)
 {
     int year   = 0;
@@ -16,24 +17,19 @@ void app_main(void)
     int time_error=0;
     int counter=0;
     int second_count=0;
+    int senderror=0;
     char message[400] = "hello";
     char lora_received_message[200] = "";
+    char check_lora_income[3]="";
+gpio_reset_pin(GPIO_NUM_47);
+gpio_set_direction(GPIO_NUM_47,GPIO_MODE_OUTPUT);
     printf("Main started\n");
 
             while(1)
             {
              
 
-            lora_wrapper_run(
-            message,
-            lora_received_message,
-            &year,
-            &month,
-            &day,
-            &hour,
-            &minute,
-            &time_error
-            );
+            
 
             printf("Back in main.c\n");
 
@@ -43,12 +39,12 @@ void app_main(void)
             printf("Time: %02d:%02d\n",
                 hour, minute);
 
-             counter++;
-            snprintf(message, sizeof(message), "TESTING FOR %d//time error:%d//received message is:%s", counter,time_error,lora_received_message);
+             
+            snprintf(message, sizeof(message), "TESTING FOR %d//time error:%d//send error:%d//received message is:%s->at%02d:%02d", counter,time_error,senderror,check_lora_income,hour, minute);
+            counter++;
+            printf("\n received message is=%s\r\n",check_lora_income);
 
-            printf("\n received message is=%s\r\n",lora_received_message);
-
-                 second_count=600;
+                 second_count=900;
                  while(second_count>2)
                  {
                  gpio_set_level(GPIO_NUM_47,0); //TURN OFF LED
@@ -58,7 +54,22 @@ void app_main(void)
                  second_count--;
                  }
 
-                 
+            lora_received_message[0] = '\0';
+
+             lora_wrapper_run(
+             message,
+             lora_received_message,
+             check_lora_income,
+             &year,
+             &month,
+             &day,
+             &hour,
+             &minute,
+             &time_error,
+             &senderror
+             ); 
+
+              
                  
             }   
 }
