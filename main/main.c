@@ -2,6 +2,7 @@
 #include <string.h>
 #include "driver/gpio.h"
 #include "lora_wrapper.h"
+#include "gsm.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -23,54 +24,58 @@ void app_main(void)
     char check_lora_income[3]="";
 gpio_reset_pin(GPIO_NUM_47);
 gpio_set_direction(GPIO_NUM_47,GPIO_MODE_OUTPUT);
-    printf("Main started\n");
 
-            while(1)
-            {
-             
 
-            
+printf("Main started\n");
 
-            printf("Back in main.c\n");
+gsm_init();
+/*while(1)
+{
+    
+//GSM 
 
-            printf("Date: %02d/%02d/%04d\n",
-                day, month, year);
 
-            printf("Time: %02d:%02d\n",
-                hour, minute);
+//LORA TRANSMOTTER
+printf("Back in main.c\n");
 
-             
-            snprintf(message, sizeof(message), "TESTING FOR %d//time error:%d//send error:%d//received message is:%s->at%02d:%02d", counter,time_error,senderror,check_lora_income,hour, minute);
-            counter++;
-            printf("\n received message is=%s\r\n",check_lora_income);
+printf("Date: %02d/%02d/%04d\n",
+    day, month, year);
 
-                 second_count=900;
-                 while(second_count>2)
-                 {
-                 gpio_set_level(GPIO_NUM_47,0); //TURN OFF LED
-                 vTaskDelay(pdMS_TO_TICKS(500));
-                 gpio_set_level(GPIO_NUM_47,1); //TURN OFF LED
-                 vTaskDelay(pdMS_TO_TICKS(500));
-                 second_count--;
-                 }
+printf("Time: %02d:%02d\n",
+    hour, minute);
 
-            lora_received_message[0] = '\0';
+    
+//snprintf(message, sizeof(message), "TESTING FOR %d//time error:%d//send error:%d//received message is:%s->at%02d:%02d", counter,time_error,senderror,check_lora_income,hour, minute);
+counter++;
+printf("\n received message is=%s\r\n",check_lora_income);
 
-             lora_wrapper_run(
-             message,
-             lora_received_message,
-             check_lora_income,
-             &year,
-             &month,
-             &day,
-             &hour,
-             &minute,
-             &time_error,
-             &senderror
-             ); 
+        second_count=900;
+        while(second_count>2)
+        {
+        gpio_set_level(GPIO_NUM_47,0); //TURN OFF LED
+        vTaskDelay(pdMS_TO_TICKS(500));
+        gpio_set_level(GPIO_NUM_47,1); //TURN OFF LED
+        vTaskDelay(pdMS_TO_TICKS(500));
+        second_count--;
+        }
 
-              
-                 
-            }   
+lora_received_message[0] = '\0';
+
+    lora_wrapper_run(
+    message,
+    lora_received_message,
+    check_lora_income,
+    &year,
+    &month,
+    &day,
+    &hour,
+    &minute,
+    &time_error,
+    &senderror
+    ); 
+
+    
+        
+} */  
 }
     

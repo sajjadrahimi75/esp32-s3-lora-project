@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "lora_wrapper.cpp"
         "main.c"
+        "GSM.c"
 
     INCLUDE_DIRS
         "."
@@ -9,6 +10,7 @@ idf_component_register(
     REQUIRES
         jgromes__radiolib
         esp_driver_gpio
+        esp_driver_uart
         esp_driver_spi
         esp_timer
 )
