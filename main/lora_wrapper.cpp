@@ -2,6 +2,8 @@
 #include <cstring>
 #include "EspHal.h"
 #include <time.h>
+#include "esp_attr.h"
+#include "esp_system.h"
 
 #include "driver/gpio.h"
 #include "esp_log.h"
@@ -9,14 +11,16 @@
 extern volatile int interrupt_dio1;
 
 //buffer of lora
-uint8_t g_noncesBuffer[RADIOLIB_LORAWAN_NONCES_BUF_SIZE];
-uint8_t g_sessionBuffer[RADIOLIB_LORAWAN_SESSION_BUF_SIZE];
+int16_t g_noncesSize;
+int16_t g_sessionSize;
+RTC_DATA_ATTR uint8_t g_noncesBuffer[RADIOLIB_LORAWAN_NONCES_BUF_SIZE];
+RTC_DATA_ATTR uint8_t g_sessionBuffer[RADIOLIB_LORAWAN_SESSION_BUF_SIZE];
+RTC_DATA_ATTR int first_run;
 
 uint8_t g_noncesBuffer_aftersend[RADIOLIB_LORAWAN_NONCES_BUF_SIZE];
 uint8_t g_sessionBuffer_aftersend[RADIOLIB_LORAWAN_SESSION_BUF_SIZE];
 
-uint16_t g_noncesSize;
-uint16_t g_sessionSize;
+
 
 uint16_t g_noncesSize_aftersend;
 uint16_t g_sessionSize_aftersend;
@@ -77,24 +81,9 @@ static const char* TAG = "LoRa";
 
 
 //extern "C" void app_main(void)
-    int step=1;
-    int step_1error=0;
-    int step_2error=0;
-    int step_3error=0;
-    int step_4error=0;
-    int step_5error=0;
-    int step_6error=0;
-    int first_run=0;
-    int start=0;
-    int joinerror=0;
-//    int senderror=0;
-    int sendsuccessful=0;
-    int send_receive_try=0;
-    int16_t state=-1116;
-    //char message[200];
+
 extern "C" void lora_wrapper_run(char *message,
     char *lora_received_message,
-    char *check_lora_income,
     int *year,
     int *month,
     int *day,
@@ -103,7 +92,22 @@ extern "C" void lora_wrapper_run(char *message,
     int *time_error,
     int *senderror)
 {
-    
+ 
+    int step=1;
+    int step_1error=0;
+    int step_2error=0;
+    int step_3error=0;
+    int step_4error=0;
+    int step_5error=0;
+    int step_6error=0;
+    int start=0;
+    int joinerror=0;
+//    int senderror=0;
+    int sendsuccessful=0;
+    int send_receive_try=0;
+    int16_t state=-1116;
+    //char message[200];
+
     ///////////////////////////////////////errors
     if(step_1error>9)
     {
@@ -400,12 +404,17 @@ extern "C" void lora_wrapper_run(char *message,
 
                     while(1)
                     {
-                        ESP_LOGI(TAG, "first_run:%d",first_run);
+                    ESP_LOGI(TAG, "first_run:%d",first_run);
+                    state = node.beginOTAA(JOIN_EUI,DEV_EUI,nullptr,APP_KEY);
+                    
+                    if(state == RADIOLIB_ERR_NONE)
+                    { 
                         if(first_run==1)
                         {
                             for(start=0;start<20;start++)
                             {
-                                state = node.setBufferNonces(g_noncesBuffer_aftersend);
+                                
+                                state = node.setBufferNonces(g_noncesBuffer);
 
                                 if(state == RADIOLIB_ERR_NONE)
                                 {
@@ -417,22 +426,18 @@ extern "C" void lora_wrapper_run(char *message,
                                     ESP_LOGE(TAG, "Nonces restore failed: %d", state);
                                 }
                                 gpio_set_level(GPIO_NUM_47,1); //TURN ON LED
-                                hal->delay(2000);
-
-                                if(start>18)
-                                {
-                                    step_4error++;
-                                    step=1;
-                                }
                             }//for
 
                             for(start=0;start<20;start++)
                             {
-                                state = node.setBufferSession(g_sessionBuffer_aftersend);
+                                state = node.setBufferSession(g_sessionBuffer);
 
                                 if(state == RADIOLIB_ERR_NONE)
                                 {
                                     ESP_LOGI(TAG, "Session buffer restored");
+                                    step=5;
+                                    step_4error=0;
+                                    ESP_LOGI(TAG, "JUMP TO STEP 6");
                                     break;
                                 }
                                 else
@@ -440,59 +445,21 @@ extern "C" void lora_wrapper_run(char *message,
                                     ESP_LOGE(TAG, "Session restore failed: %d", state);
                                 }
                             gpio_set_level(GPIO_NUM_47,1); //TURN ON LED
-                            hal->delay(2000);
-                                if(start>18)
-                                {
-                                    step_4error++;
-                                    step=1;
-                                }
+                                
                             }//for
                         }//first_run=1
+                        
 
+                    ESP_LOGI(TAG, "LoRaWAN credentials accepted");
+                    step=5;
+                    break;
+                    }
+                    else
+                    {
+                        ESP_LOGE(TAG,"LoRaWAN configuration failed, code: %d",state);
+                        ESP_LOGE(TAG,"TRY AGAIN LORAWAN configuration, TRIED FOR: %d",start);  
+                    }   
 
-                        if(first_run==0)
-                        {
-                            for(start=0;start<20;start++)
-                            {
-                            state = node.beginOTAA(JOIN_EUI,DEV_EUI,nullptr,APP_KEY);
-
-                                if(state != RADIOLIB_ERR_NONE)
-                                {
-                                ESP_LOGE(TAG,"LoRaWAN configuration failed, code: %d",state);
-                                ESP_LOGE(TAG,"TRY AGAIN LORAWAN configuration, TRIED FOR: %d",start);
-
-                                }
-
-                            if(state == RADIOLIB_ERR_NONE)
-                            {
-                            break;
-                            }
-                            gpio_set_level(GPIO_NUM_47,1); //TURN ON LED
-                            hal->delay(2000);
-                            if(start>18)
-                                {
-                                    step_4error++;
-                                    step=1;
-                                }
-                            }//for
-                        }//first_run=0
-
-
-                        if(state == RADIOLIB_ERR_NONE)
-                        {
-                        ESP_LOGI(TAG, "LoRaWAN credentials accepted");
-                            if(first_run==1)
-                            {
-                                step=6;
-                                step_4error=0;
-                                ESP_LOGI(TAG, "JUMP TO STEP 6");
-                            }
-                            else
-                            {
-                                step=5;   
-                            }
-                            break;
-                        }
                     }//while
                 
             }//fpr step=4
@@ -561,26 +528,14 @@ extern "C" void lora_wrapper_run(char *message,
 
                     if(state == RADIOLIB_ERR_NONE||state==-1118)
                     {
+                    ESP_LOGI(TAG,"LoRaWAN join successful, result: %d",state);
+                    step=6;
+                    step_6error=0;
+                    gpio_set_level(GPIO_NUM_47,1); //TURN On LED
                     break;
                     }
-                hal->delay(2000);
 
-                }//while
-        
-                if(state == RADIOLIB_ERR_NONE||state==-1118)
-                {
-                ESP_LOGI(TAG,"LoRaWAN join successful, result: %d",state);
-        /////////////////////////////////////////////saving buffer////////////////
-                memcpy(g_noncesBuffer,node.getBufferNonces(),RADIOLIB_LORAWAN_NONCES_BUF_SIZE);
-                memcpy(g_sessionBuffer,node.getBufferSession(),RADIOLIB_LORAWAN_SESSION_BUF_SIZE);
-                g_noncesSize = RADIOLIB_LORAWAN_NONCES_BUF_SIZE;
-                g_sessionSize = RADIOLIB_LORAWAN_SESSION_BUF_SIZE;
-        /////////////////////////////////////////////////////////
-                step=6;
-                step_6error=0;
-                gpio_set_level(GPIO_NUM_47,1); //TURN On LED
-                } 
-
+                }//while  
             }//if for step=5
         // --------------------------------------------------
         // Send LoRaWAN uplinks
@@ -651,12 +606,6 @@ extern "C" void lora_wrapper_run(char *message,
                         lora_received_message[lenDown] = '\0';
 
                         printf("Received in LoRaWrapper: %s\r\n",lora_received_message);
-                        check_lora_income[0] = lora_received_message[0];
-                        check_lora_income[1] = lora_received_message[1];
-                        check_lora_income[2] = '\0';
-                            
-                        printf("TWO FIRST CHARACTER: %s\r\n",check_lora_income);
-
                         //}
                         /*else if(state == RADIOLIB_ERR_NONE)
                         {
@@ -704,6 +653,7 @@ extern "C" void lora_wrapper_run(char *message,
                         step_6error=0;
                         ack=0;
                         message[0] = '\0';
+        
                             /*while(1)
                             {
                             printf("\r WAITING FOR SENDING NEXT MESSAGE(count: %d)\r",start);
@@ -793,10 +743,14 @@ extern "C" void lora_wrapper_run(char *message,
                     }
 
         /////////////////////////////////////////////saving buffer after sending////////////////
-                memcpy(g_noncesBuffer_aftersend,node.getBufferNonces(),RADIOLIB_LORAWAN_NONCES_BUF_SIZE);
-                memcpy(g_sessionBuffer_aftersend,node.getBufferSession(),RADIOLIB_LORAWAN_SESSION_BUF_SIZE);
-                g_noncesSize_aftersend = RADIOLIB_LORAWAN_NONCES_BUF_SIZE;
-                g_sessionSize_aftersend = RADIOLIB_LORAWAN_SESSION_BUF_SIZE;
+                //memcpy(g_noncesBuffer_aftersend,node.getBufferNonces(),RADIOLIB_LORAWAN_NONCES_BUF_SIZE);
+                //memcpy(g_sessionBuffer_aftersend,node.getBufferSession(),RADIOLIB_LORAWAN_SESSION_BUF_SIZE);
+                //g_noncesSize_aftersend = RADIOLIB_LORAWAN_NONCES_BUF_SIZE;
+                //g_sessionSize_aftersend = RADIOLIB_LORAWAN_SESSION_BUF_SIZE;
+                g_noncesSize= RADIOLIB_LORAWAN_NONCES_BUF_SIZE;
+                g_sessionSize= RADIOLIB_LORAWAN_SESSION_BUF_SIZE;
+                memcpy(g_noncesBuffer,node.getBufferNonces(),g_noncesSize);
+                memcpy(g_sessionBuffer,node.getBufferSession(),g_sessionSize);
         ///////////////////////////////////////////////////////////showing income message
 
             //////////////////////////////////////////showing buffer///////////////////////////
@@ -830,7 +784,7 @@ extern "C" void lora_wrapper_run(char *message,
 
         //////////////////////////////////////////showing buffer after send///////////////////////////
         
-                printf("\n===== NONCES BUFFER AFTER SEND =====\n");
+               /* printf("\n===== NONCES BUFFER AFTER SEND =====\n");
                 printf("\nNONCES SIZE AFTER SEND IS:%d\n",g_noncesSize_aftersend);
 
                     for(int i = 0; i < g_noncesSize_aftersend; i++)
@@ -869,19 +823,14 @@ extern "C" void lora_wrapper_run(char *message,
                     }
 
                 printf("\nNONCES DIFFERENT IS:%d///SESSION DIFFERENT IS:%d\n",noncess_diff,session_diff);
-            
+                */
                 printf("\n\r\033[34mRESULT OF ERROR ARE= ERROR OF JOIN:%d//ERROR OF SEND MESSAGE:%d//successful send:%d//time error:%d\033[0m\n",joinerror,*senderror,sendsuccessful,*time_error);
 
                 break;
             
                 }//while
             }//if for step=6
-        
-            //delete later
-                        step=1;
-                        first_run=1;
-                        step_6error=0;
-                        message[0] = '\0';
+         printf("\nstep 6 done\n");   
         }
-            
+     printf("\nmessage is:%s",message);       
 }

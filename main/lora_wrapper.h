@@ -36,7 +36,6 @@ int lora_receive(
 
 void lora_wrapper_run(const char *message,
     char *lora_received_message,
-    char *check_lora_income,
     int *year,
     int *month,
     int *day,
