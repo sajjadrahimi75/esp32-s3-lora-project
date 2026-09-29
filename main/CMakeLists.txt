@@ -3,12 +3,18 @@ idf_component_register(
         "lora_wrapper.cpp"
         "main.c"
         "GSM.c"
+        "GSM_PPP.c"
+        "camera.c"
 
     INCLUDE_DIRS
         "."
 
     REQUIRES
         jgromes__radiolib
+        esp_modem
+        esp_netif
+        esp_event
+        esp_http_client
         esp_driver_gpio
         esp_driver_uart
         esp_driver_spi

@@ -1,5 +1,6 @@
 #include "gsm.h"
 
+
 #include <stdio.h>
 #include <string.h>
 
@@ -61,8 +62,8 @@ int wait_to_send=2000;
 
     uart_set_pin(
     GSM_UART,
-    GPIO_NUM_17,       // ESP32 TX
-    GPIO_NUM_18,       // ESP32 RX
+    GPIO_NUM_17,       // ESP32 TX 17
+    GPIO_NUM_18,       // ESP32 RX 18
     UART_PIN_NO_CHANGE,
     UART_PIN_NO_CHANGE
     );
@@ -93,8 +94,8 @@ size_t command_len = 0;
          {
          printf("\nSTEP 1");
          strcpy(command,"ATE0\r\n");
-         step=1;
-         let=1;
+         step=1;//1
+         let=1;//1
          command_len = strlen(command);
          }
          if(let==0 && step==1)  
