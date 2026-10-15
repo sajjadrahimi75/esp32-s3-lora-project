@@ -5,6 +5,8 @@ idf_component_register(
         "GSM.c"
         "GSM_PPP.c"
         "camera.c"
+        "wifi.c"
+        "image_stream.c"
 
     INCLUDE_DIRS
         "."
@@ -19,6 +21,17 @@ idf_component_register(
         esp_driver_uart
         esp_driver_spi
         esp_timer
+        
+        esp_wifi
+        esp_netif
+        esp_event
+        esp_http_client
+        nvs_flash
+        mbedtls
+        esp_driver_pcnt
+        esp_psram
+        esp_ringbuf
+
 )
 
 target_compile_definitions(${COMPONENT_LIB} PUBLIC

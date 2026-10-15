@@ -1,6 +1,6 @@
 dependencies:
   espressif/esp32-camera:
-    component_hash: bc9c8a6b51df777a014fa295825b3de5069bc0300c317acff20c97cf4a10ac7d
+    component_hash: d1770097ec47996a9aba49b8d99672863c9855ea2d47e91fe31e11e58e8c7813
     dependencies:
     - name: espressif/esp_jpeg
       registry_url: https://components.espressif.com
@@ -12,7 +12,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 2.1.7
+    version: 2.1.8
   espressif/esp_jpeg:
     component_hash: defb83669293cbf86d0fa86b475ba5517aceed04ed70db435388c151ab37b5d7
     dependencies:
@@ -52,6 +52,6 @@ direct_dependencies:
 - espressif/esp_modem
 - idf
 - jgromes/radiolib
-manifest_hash: 00e2d54b2777cd576f772c98fb0247624977b8dab76f9a514ca71a13565a6d78
+manifest_hash: 70b908961bfb2538e033acc10172d5bc7cf37ac6c8dab244feb812995915a050
 target: esp32s3
 version: 3.0.0

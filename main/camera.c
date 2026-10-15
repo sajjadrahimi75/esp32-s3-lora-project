@@ -1,17 +1,25 @@
 #include "camera.h"
-#include "driver/uart.h"
+
+#include <stdio.h>
+#include <stdint.h>
+
 #include "esp_camera.h"
 #include "esp_log.h"
-#include <string.h>
-#include <stdio.h>
+
 #include "driver/gpio.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 
-
 static const char *TAG = "CAMERA";
 
+
+/*
+ * =========================================================
+ * CAMERA PINS
+ * =========================================================
+ */
 
 #define CAM_POWER_PIN   3
 
@@ -27,31 +35,65 @@ static const char *TAG = "CAMERA";
 #define CAM_PIN_HREF    19
 #define CAM_PIN_PCLK    42
 
-#define CAM_PIN_D0      40   // OV5640 D2
-#define CAM_PIN_D1      38   // OV5640 D3
-#define CAM_PIN_D2      37   // OV5640 D4
-#define CAM_PIN_D3      39   // OV5640 D5
-#define CAM_PIN_D4      41   // OV5640 D6
-#define CAM_PIN_D5      36   // OV5640 D7
-#define CAM_PIN_D6      35   // OV5640 D8
-#define CAM_PIN_D7      20   // OV5640 D9
+#define CAM_PIN_D0      40
+#define CAM_PIN_D1      38
+#define CAM_PIN_D2      37
+#define CAM_PIN_D3      39
+#define CAM_PIN_D4      41
+#define CAM_PIN_D5      36
+#define CAM_PIN_D6      35
+#define CAM_PIN_D7      20
+
+
+
+/*
+ * =========================================================
+ * CAMERA INITIALIZATION
+ * =========================================================
+ */
 
 esp_err_t camera_init_ov5640(void)
 {
     /*
-     * Camera power ON.
+     * -----------------------------------------------------
+     * POWER ON CAMERA
+     * -----------------------------------------------------
      *
-     * Q3 is a P-channel high-side MOSFET,
-     * so CAMOn LOW should enable VCam.
+     * P-channel high-side MOSFET:
+     *
+     * GPIO LOW  -> Camera ON
+     * GPIO HIGH -> Camera OFF
      */
-    gpio_reset_pin(CAM_POWER_PIN);
-    gpio_set_direction(CAM_POWER_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(CAM_POWER_PIN, 0);
 
-    vTaskDelay(pdMS_TO_TICKS(100));
-    
- 
+    gpio_reset_pin(CAM_POWER_PIN);
+
+    gpio_set_direction(
+        CAM_POWER_PIN,
+        GPIO_MODE_OUTPUT
+    );
+
+    gpio_set_level(
+        CAM_POWER_PIN,
+        0
+    );
+
+
+    /*
+     * Give camera power some time to stabilize.
+     */
+    vTaskDelay(
+        pdMS_TO_TICKS(100)
+    );
+
+
+    /*
+     * -----------------------------------------------------
+     * STANDARD ESP32 CAMERA CONFIGURATION
+     * -----------------------------------------------------
+     */
+
     camera_config_t config = {
+
         .pin_pwdn = CAM_PIN_PWDN,
         .pin_reset = CAM_PIN_RESET,
 
@@ -73,208 +115,302 @@ esp_err_t camera_init_ov5640(void)
         .pin_href = CAM_PIN_HREF,
         .pin_pclk = CAM_PIN_PCLK,
 
-        .xclk_freq_hz = 10000000,//20000000,
+
+        /*
+         * Camera XCLK.
+         */
+        .xclk_freq_hz = 6000000,
+
 
         .ledc_timer = LEDC_TIMER_0,
         .ledc_channel = LEDC_CHANNEL_0,
 
-        .pixel_format = PIXFORMAT_JPEG,//PIXFORMAT_RGB565
 
         /*
-         * Start small while debugging.
+         * JPEG output.
          */
-        .frame_size = FRAMESIZE_QSXGA,//FRAMESIZE_5MP,FRAMESIZE_UXGA,FRAMESIZE_QVGA,FRAMESIZE_VGA,
+        .pixel_format = PIXFORMAT_JPEG, //PIXFORMAT_RGB565
 
-        .jpeg_quality = 5,//12
 
+        /*
+         * OV5640 maximum resolution:
+         * 2592 x 1944
+         */
+        .frame_size = photo_size,//from 1 to 21(biggest size)
+
+
+        /*
+         * JPEG quality is stored in RTC memory
+         * and controlled from main.c.
+         */
+        .jpeg_quality = photo_quality,
+
+
+        /*
+         * For now use ONE framebuffer.
+         *
+         * Do not use 2 while debugging.
+         */
         .fb_count = 1,
+        //idf.py monitor 2>&1 | Tee-Object -FilePath QSXGA_Q5.txt
 
+        /*
+         * Wait until framebuffer is available.
+         */
         .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
 
-        .fb_location = CAMERA_FB_IN_PSRAM,//CAMERA_FB_IN_DRAM,
 
-        
+        /*
+         * IMPORTANT:
+         *
+         * QSXGA JPEG should use PSRAM.
+         *
+         * Do NOT use CAMERA_FB_IN_DRAM here.
+         */
+        .fb_location = CAMERA_FB_IN_PSRAM,
     };
 
 
-    ESP_LOGI(TAG, "Initializing OV5640...");
+    ESP_LOGI(TAG,"Initializing OV5640...");
 
-    esp_err_t err =
-        esp_camera_init(&config);
 
-    if(err != ESP_OK)
+    /*
+     * -----------------------------------------------------
+     * INITIALIZE ORIGINAL ESP32-CAMERA DRIVER
+     * -----------------------------------------------------
+     */
+
+    esp_err_t err =esp_camera_init(&config);
+
+
+    if (err != ESP_OK)
     {
-        ESP_LOGE(TAG,
-                 "Camera init failed: 0x%x",
-                 err);
-
+        ESP_LOGE(TAG,"Camera init failed: 0x%x",err);
         return err;
     }
 
 
-    sensor_t *sensor =
-        esp_camera_sensor_get();
 
-        if(sensor == NULL)
+    /*
+     * -----------------------------------------------------
+     * GET CAMERA SENSOR
+     * -----------------------------------------------------
+     */
+
+    sensor_t *sensor =esp_camera_sensor_get();
+
+
+    if (sensor == NULL)
     {
-        ESP_LOGE(TAG,
-                 "Camera sensor not available");
+        ESP_LOGE(TAG,"Camera sensor not available");
 
         return ESP_FAIL;
     }
 
-    ///////////////////////////////////camera parameter//////////////////////
-    // Camera image enhancement settings
-
-    sensor->set_sharpness(sensor, 2);    // Maximum digital sharpening(-3,+3)
-    sensor->set_contrast(sensor, 3);     // Increased contrast(-3,+3)
-    sensor->set_brightness(sensor, 2);   // Normal brightness(-3,+3)
-    sensor->set_saturation(sensor, 0);   // Normal saturation(-4,+4)
-
-    sensor->set_whitebal(sensor, 1);     // Enable automatic white balance
-    sensor->set_exposure_ctrl(sensor, 1); // Enable automatic exposure
-    sensor->set_gain_ctrl(sensor, 1);    // Enable automatic gain
-
-    sensor->set_colorbar(sensor, 0);     // Disable test pattern
-    /////////////////////////////////////////////////////////////////////////
 
 
-    ESP_LOGI(TAG, "REG 3008 = 0x%02X", sensor->get_reg(sensor, 0x3008, 0xFF));
-    ESP_LOGI(TAG, "REG 3007 = 0x%02X", sensor->get_reg(sensor, 0x3007, 0xFF));
-    ESP_LOGI(TAG, "REG 300E = 0x%02X", sensor->get_reg(sensor, 0x300E, 0xFF));
-    ESP_LOGI(TAG, "REG 3017 = 0x%02X", sensor->get_reg(sensor, 0x3017, 0xFF));
-    ESP_LOGI(TAG, "REG 3018 = 0x%02X", sensor->get_reg(sensor, 0x3018, 0xFF));   
+    /*
+     * -----------------------------------------------------
+     * VERIFY OV5640
+     * -----------------------------------------------------
+     */
 
-    
+    ESP_LOGI(TAG,"Camera detected PID=0x%04X",sensor->id.PID);
 
 
-    ESP_LOGI(TAG, "Enabling OV5640 DVP outputs");
-
-    sensor->set_reg(sensor, 0x3017, 0xFF, 0xFF);
-    sensor->set_reg(sensor, 0x3018, 0xFF, 0xFF);
-
-        // Set OV5640 output drive strength to 4x
-    sensor->set_reg(sensor, 0x302C, 0xC0, 0xC0);
-
-    // Verify the register
-    ESP_LOGI(TAG, "REG 302C = 0x%02X",
-            sensor->get_reg(sensor, 0x302C, 0xFF));
-
-    /////////////////////////////////////////////
-    if (sensor == NULL)
-{
-    ESP_LOGE(TAG, "Camera sensor not available");
-    return ESP_FAIL;
-}
-
-/////////////////////////////////////////////////////
-    
-    vTaskDelay(pdMS_TO_TICKS(300));
-
-    // discard startup frames
-  /* for (int i = 0; i < 2; i++)
+    if (sensor->id.PID != OV5640_PID)
     {
-        camera_fb_t *fb = esp_camera_fb_get();
+        ESP_LOGE(TAG,"Detected sensor is not OV5640");
 
-        if (fb != NULL)
-        {
-            esp_camera_fb_return(fb);
-        }
+        esp_camera_deinit();
 
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }*/
+        return ESP_FAIL;
+    }
 
 
 
-    ESP_LOGI(TAG, "REG 3017 = 0x%02X",
-            sensor->get_reg(sensor, 0x3017, 0xFF));
+    /*
+     * -----------------------------------------------------
+     * BASIC IMAGE SETTINGS
+     * -----------------------------------------------------
+     */
 
-    ESP_LOGI(TAG, "REG 3018 = 0x%02X",
-            sensor->get_reg(sensor, 0x3018, 0xFF));
+    sensor->set_sharpness(sensor,0);
+
+    sensor->set_contrast(sensor,0);
+
+    sensor->set_brightness(sensor,0);
+
+    sensor->set_saturation(sensor,0);
 
 
-    ESP_LOGI(TAG,
-             "Camera detected PID=0x%04X",
-             sensor->id.PID);
+    sensor->set_whitebal(sensor,1);
 
-    ESP_LOGI(TAG,
-             "OV5640 initialized successfully");
+    sensor->set_exposure_ctrl(sensor,1);
 
+    sensor->set_gain_ctrl(sensor,1);
+
+    sensor->set_colorbar(sensor,0);
+
+
+    ESP_LOGI(TAG,"OV5640 initialized successfully");
     return ESP_OK;
 }
 
 
 
-
+/*
+ * =========================================================
+ * TAKE ONE PHOTO
+ * =========================================================
+ */
 
 camera_fb_t *camera_take_photo(void)
 {
-    camera_fb_t *fb =
-        esp_camera_fb_get();
+    ESP_LOGI(TAG,"Waiting for complete JPEG frame...");
+    /*
+     * Standard driver function.
+     *
+     * Driver waits for a complete frame and
+     * returns the framebuffer.
+     */
+    camera_fb_t *fb =esp_camera_fb_get();
+///////////////////////////////////////GET PHOTO SIZE FROM CAMERA
+    sensor_t *sensor = esp_camera_sensor_get();
+    
+    int reg_4414 =sensor->get_reg(sensor, 0x4414, 0xFF);
+    int reg_4415 =sensor->get_reg(sensor, 0x4415, 0xFF);
+    int reg_4416 =sensor->get_reg(sensor, 0x4416, 0xFF);
+    int reg_4417 =sensor->get_reg(sensor, 0x4417, 0xFF);
 
-    if(fb == NULL)
+
+    uint32_t jpeg_size =((uint32_t)reg_4414 << 16) |((uint32_t)reg_4415 << 8)  |((uint32_t)reg_4416);
+    printf("**CAMERA JPEG SIZE = %u bytes\n",(unsigned)jpeg_size);
+    
+////////////////////////////////////////////////////////////////////
+///////////////////////////////////image height and width
+    int w_h = sensor->get_reg(sensor, 0x3808, 0xFF);
+    int w_l = sensor->get_reg(sensor, 0x3809, 0xFF);
+    int h_h = sensor->get_reg(sensor, 0x380A, 0xFF);
+    int h_l = sensor->get_reg(sensor, 0x380B, 0xFF);
+
+    uint16_t width =((w_h & 0x0F) << 8) |(w_l & 0xFF);
+    uint16_t height =((h_h & 0x0F) << 8) |(h_l & 0xFF);
+
+    printf("**CAMERA FRAME SIZE = %u x %u\n",width,height);
+/////////////////////////////////////////////////////////////////
+///////////////////////////////////OVERFLOW CHECK(JFIFO OVERFLOW)
+    int overflow_reg = sensor->get_reg(sensor,0x4417,0xFF);
+
+    printf("**CAMERA JFIFO OVERFLOW REG 0x4417 = 0x%02X\n",overflow_reg);
+    /*
+    if (overflow_reg & 0x01)
     {
-        ESP_LOGE(TAG,
-                 "Capture failed");
+        printf("OV5640 JPEG FIFO OVERFLOW = YES\n");
+    }
+    else
+    {
+        printf("OV5640 JPEG FIFO OVERFLOW = NO\n");
+    }
+        */
+////////////////////////////////////////////////////////////////////
+    ESP_LOGI(TAG,"JPEG QUALITY = %d",photo_quality);
+    
 
+    if (fb == NULL)
+    {
+        ESP_LOGE( TAG,"Capture failed");
         return NULL;
     }
 
-    //ESP_LOGI(TAG,"JPEG captured: %u bytes, %ux%u",(unsigned)fb->len,fb->width,fb->height);
-    ESP_LOGI(TAG,"Frame captured: %u bytes, %ux%u",(unsigned)fb->len,fb->width,fb->height);
-    gpio_set_level(CAM_POWER_PIN, 1);
-    ESP_LOGI(TAG, "CAMERA POWER OFF - JPEG stored in PSRAM");
+    ESP_LOGI(TAG,"PHOTO CAPTURE COMPLETE");
+    ESP_LOGI(TAG, "JPEG size in SPRAM: %u bytes",(unsigned)fb->len);
+    //ESP_LOGI(TAG,"Resolution: %u x %u",(unsigned)fb->width,(unsigned)fb->height);
+
+    ESP_LOGI(TAG,"Framebuffer address: %p",fb->buf);
+
+
+    /*
+     * Useful JPEG verification.
+     */
+    if (fb->len >= 2)
+    {
+        ESP_LOGI(TAG,"JPEG START = %02X %02X",fb->buf[0],fb->buf[1]);
+        ESP_LOGI(TAG,"JPEG END   = %02X %02X",fb->buf[fb->len - 2],fb->buf[fb->len - 1]);
+    }
+
+
     return fb;
 }
 
 
+
+/*
+ * =========================================================
+ * RETURN FRAMEBUFFER
+ * =========================================================
+ */
+
 void camera_return_photo(camera_fb_t *fb)
 {
-    if(fb != NULL)
+    if (fb != NULL)
     {
         esp_camera_fb_return(fb);
     }
-
-
-    
 }
 
-    ///////////////////////////////////sending photo
-/*void camera_send_photo_uart(camera_fb_t *fb)
-{
-    if (fb == NULL) {
-        return;
-    }
-
-    printf("\nIMAGE_START:%u\n", (unsigned)fb->len);
-    fflush(stdout);
-
-    uart_write_bytes(UART_NUM_0,
-                     (const char *)fb->buf,
-                     fb->len);
-
-    uart_wait_tx_done(UART_NUM_0, pdMS_TO_TICKS(5000));
-
-    printf("\nIMAGE_END\n");
-    fflush(stdout);
-}*/
 
 
+/*
+ * =========================================================
+ * SEND JPEG AS HEX THROUGH UART
+ * =========================================================
+ */
 
 void camera_send_photo_uart(camera_fb_t *fb)
 {
-    if (fb == NULL) {
+    if (fb == NULL)
+    {
         return;
     }
 
-    printf("IMAGE_HEX_START:%u\n", (unsigned)fb->len);
 
-        for (size_t i = 0; i < fb->len; i++)
+    printf("IMAGE_HEX_START:%u\n",(unsigned)fb->len);
+
+
+    for (size_t i = 0;i < fb->len;i++)
     {
-        printf("%02X", fb->buf[i]);
+        printf("%02X",fb->buf[i]);
     }
 
+
     printf("\nIMAGE_HEX_END\n");
+
+
     fflush(stdout);
- 
+}
+
+
+
+/*
+ * =========================================================
+ * POWER OFF CAMERA
+ * =========================================================
+ */
+
+void camera_power_off(void)
+{
+    /*
+     * First stop and free the standard camera driver.
+     */
+    esp_camera_deinit();
+
+
+    /*
+     * Then remove power from OV5640.
+     */
+    gpio_set_level(CAM_POWER_PIN,1);
+
+
+    ESP_LOGI(TAG,"CAMERA POWER OFF");
 }

@@ -1,0 +1,12 @@
+ dependencies.lock      |    38 [32m+[m[31m-[m
+ main/CMakeLists.txt    |     6 [32m+[m
+ main/GSM.c             |     9 [32m+[m[31m-[m
+ main/GSM.h             |     1 [32m+[m
+ main/GSM_PPP.c         |   447 [32m+[m
+ main/camera.c          |   280 [32m+[m
+ main/camera.h          |    15 [32m+[m
+ main/idf_component.yml |     2 [32m+[m
+ main/main.c            | 31958 [32m+[m[31m----------------------------------------------[m
+ main/receive_image.py  |    96 [32m+[m
+ sdkconfig              |   229 [32m+[m[31m-[m
+ 11 files changed, 1149 insertions(+), 31932 deletions(-)
