@@ -17,3 +17,4 @@ dependencies:
   jgromes/radiolib: 7.7.1
   espressif/esp_modem: ^2.1.0
   espressif/esp32-camera: ^2.1.8
+  espressif/cjson: "^1.7.19"

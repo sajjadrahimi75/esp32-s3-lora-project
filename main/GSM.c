@@ -20,6 +20,7 @@
 
 void gsm_init(const uint8_t *test_image,size_t test_image_len)
 {
+    /*
 gpio_reset_pin(GPIO_NUM_4);
 gpio_set_direction(GPIO_NUM_4,GPIO_MODE_OUTPUT);
 gpio_set_level(GPIO_NUM_4, 0);       // GSM OFF
@@ -27,7 +28,7 @@ gpio_reset_pin(GPIO_NUM_7);
 gpio_set_direction(GPIO_NUM_7,GPIO_MODE_OUTPUT);
 gpio_set_level(GPIO_NUM_7, 1);
 vTaskDelay(pdMS_TO_TICKS(1000));
-
+*/
 
 char command[1000]="";
 char received_message_gsm[200]="";

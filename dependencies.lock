@@ -1,4 +1,14 @@
 dependencies:
+  espressif/cjson:
+    component_hash: e788323270d90738662d66fffa910bfe1fba019bba087f01557e70c40485b469
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.7.19~2
   espressif/esp32-camera:
     component_hash: d1770097ec47996a9aba49b8d99672863c9855ea2d47e91fe31e11e58e8c7813
     dependencies:
@@ -48,10 +58,11 @@ dependencies:
       type: service
     version: 7.7.1
 direct_dependencies:
+- espressif/cjson
 - espressif/esp32-camera
 - espressif/esp_modem
 - idf
 - jgromes/radiolib
-manifest_hash: 70b908961bfb2538e033acc10172d5bc7cf37ac6c8dab244feb812995915a050
+manifest_hash: 981f072e8d7a06ed574e50dd62392d8835aecd42376a03e104f912e3b62b5471
 target: esp32s3
 version: 3.0.0

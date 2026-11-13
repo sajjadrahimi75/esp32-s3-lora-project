@@ -31,6 +31,7 @@ idf_component_register(
         esp_driver_pcnt
         esp_psram
         esp_ringbuf
+        wpa_supplicant
 
 )
 
